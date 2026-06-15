@@ -28,4 +28,14 @@ export interface SeismicEvent {
   depth: number
   originTime: string
   location: string
+  latitude: number
+  longitude: number
+}
+
+export interface StationEventRelation {
+  eventId: string
+  distanceKm: number
+  azimuth: number
+  travelTimeP: number
+  travelTimeS: number
 }

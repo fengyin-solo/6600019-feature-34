@@ -50,18 +50,104 @@
         <h3 class="text-cyan-300 font-bold text-sm mb-2">台站分布</h3>
         <div v-for="s in store.stations" :key="s.id"
           @click="store.selectedStation = s"
-          class="bg-gray-700 rounded p-2 mb-1 text-sm cursor-pointer hover:bg-gray-600"
-          :class="store.selectedStation?.id === s.id ? 'ring-1 ring-cyan-500' : ''">
-          {{ s.name }} <span class="text-gray-400 text-xs">({{ s.latitude.toFixed(1) }}, {{ s.longitude.toFixed(1) }})</span>
+          class="rounded p-2 mb-1 text-sm cursor-pointer transition-all duration-200"
+          :class="store.selectedStation?.id === s.id
+            ? 'bg-cyan-900/50 border border-cyan-400 shadow-lg shadow-cyan-500/20 scale-[1.02]'
+            : 'bg-gray-700 hover:bg-gray-600 border border-transparent'">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full"
+              :class="store.selectedStation?.id === s.id ? 'bg-cyan-400 animate-pulse' : 'bg-gray-500'"></div>
+            <span class="font-medium" :class="store.selectedStation?.id === s.id ? 'text-cyan-300' : 'text-gray-200'">{{ s.name }}</span>
+          </div>
+          <div class="text-gray-400 text-xs mt-1 ml-4">{{ s.latitude.toFixed(2) }}°N, {{ s.longitude.toFixed(2) }}°E</div>
+        </div>
+      </div>
+
+      <!-- Station Overview -->
+      <div v-if="store.selectedStation" class="bg-gradient-to-br from-cyan-900/30 to-gray-800 rounded-xl p-3 border border-cyan-500/30">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-8 h-8 rounded-lg bg-cyan-500/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-cyan-300 font-bold text-sm">台站概览</h3>
+            <p class="text-cyan-200/70 text-xs">{{ store.selectedStation.name }} 台站</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mb-3">
+          <div class="bg-gray-800/60 rounded-lg p-2">
+            <div class="text-gray-400 text-xs">海拔高度</div>
+            <div class="text-white font-semibold text-sm">{{ store.selectedStation.elevation }} m</div>
+          </div>
+          <div class="bg-gray-800/60 rounded-lg p-2">
+            <div class="text-gray-400 text-xs">台站编号</div>
+            <div class="text-white font-semibold text-sm">{{ store.selectedStation.id }}</div>
+          </div>
+        </div>
+
+        <div class="bg-gray-800/60 rounded-lg p-2 mb-3">
+          <div class="text-gray-400 text-xs mb-1">坐标位置</div>
+          <div class="text-white text-sm font-mono">{{ store.selectedStation.latitude.toFixed(4) }}°N</div>
+          <div class="text-white text-sm font-mono">{{ store.selectedStation.longitude.toFixed(4) }}°E</div>
+        </div>
+
+        <!-- Nearest Event Highlight -->
+        <div v-if="store.nearestEvent" class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            <span class="text-amber-300 font-semibold text-xs">最近地震事件</span>
+          </div>
+          <div class="text-white text-sm font-medium mb-1">
+            M{{ store.nearestEvent.magnitude }} {{ store.nearestEvent.location }}
+          </div>
+          <div class="grid grid-cols-2 gap-1 text-xs">
+            <div class="text-gray-400">震中距</div>
+            <div class="text-amber-300 text-right font-mono">{{ store.nearestEvent.distanceKm.toFixed(1) }} km</div>
+            <div class="text-gray-400">方位角</div>
+            <div class="text-amber-300 text-right font-mono">{{ store.nearestEvent.azimuth.toFixed(1) }}°</div>
+            <div class="text-gray-400">P 波走时</div>
+            <div class="text-red-300 text-right font-mono">{{ store.nearestEvent.travelTimeP.toFixed(1) }} s</div>
+            <div class="text-gray-400">S 波走时</div>
+            <div class="text-blue-300 text-right font-mono">{{ store.nearestEvent.travelTimeS.toFixed(1) }} s</div>
+          </div>
         </div>
       </div>
 
       <!-- Events -->
       <div class="bg-gray-800 rounded-xl p-3">
-        <h3 class="text-cyan-300 font-bold text-sm mb-2">地震事件目录</h3>
-        <div v-for="e in store.events" :key="e.id" class="bg-gray-700 rounded p-2 mb-1 text-xs">
-          M{{ e.magnitude }} {{ e.location }}
-          <div class="text-gray-500">深度 {{ e.depth }}km | {{ e.originTime.slice(0, 16) }}</div>
+        <h3 class="text-cyan-300 font-bold text-sm mb-2">
+          地震事件目录
+          <span v-if="store.selectedStation" class="text-gray-500 text-xs font-normal ml-2">
+            按距离排序
+          </span>
+        </h3>
+        <div v-for="e in (store.selectedStation ? store.selectedStationEvents : store.events)" :key="e.id"
+          class="rounded p-2 mb-1 text-xs transition-all duration-200"
+          :class="store.nearestEvent?.id === e.id && store.selectedStation
+            ? 'bg-amber-900/20 border border-amber-500/40'
+            : 'bg-gray-700 border border-transparent'">
+          <div class="flex items-center justify-between">
+            <span class="font-medium" :class="store.nearestEvent?.id === e.id && store.selectedStation ? 'text-amber-300' : 'text-gray-200'">
+              M{{ e.magnitude }} {{ e.location }}
+            </span>
+            <span v-if="store.nearestEvent?.id === e.id && store.selectedStation"
+              class="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded-full">
+              最近
+            </span>
+          </div>
+          <div class="text-gray-500 mt-1">深度 {{ e.depth }}km | {{ e.originTime.slice(0, 16) }}</div>
+          <div v-if="store.selectedStation && 'distanceKm' in e" class="flex gap-3 mt-1 text-[11px]">
+            <span class="text-cyan-400">{{ e.distanceKm.toFixed(0) }}km</span>
+            <span class="text-gray-500">方位 {{ e.azimuth.toFixed(0) }}°</span>
+            <span class="text-red-400">P {{ e.travelTimeP.toFixed(0) }}s</span>
+            <span class="text-blue-400">S {{ e.travelTimeS.toFixed(0) }}s</span>
+          </div>
         </div>
       </div>
     </div>

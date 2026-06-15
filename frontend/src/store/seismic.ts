@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { WaveformData, PhasePick, Station, SeismicEvent } from '../types'
+import type { WaveformData, PhasePick, Station, SeismicEvent, StationEventRelation } from '../types'
 
 export const useSeismicStore = defineStore('seismic', () => {
   const waveform = ref<WaveformData | null>(null)
@@ -11,9 +11,9 @@ export const useSeismicStore = defineStore('seismic', () => {
   const threshold = ref(3.5)
   const isLoading = ref(false)
   const events = ref<SeismicEvent[]>([
-    { id: '1', magnitude: 4.2, depth: 12.5, originTime: '2025-01-15T08:23:41Z', location: '四川雅安' },
-    { id: '2', magnitude: 3.8, depth: 8.3, originTime: '2025-01-14T14:12:05Z', location: '云南大理' },
-    { id: '3', magnitude: 5.1, depth: 25.0, originTime: '2025-01-13T02:45:33Z', location: '台湾花莲' },
+    { id: '1', magnitude: 4.2, depth: 12.5, originTime: '2025-01-15T08:23:41Z', location: '四川雅安', latitude: 30.0, longitude: 103.0 },
+    { id: '2', magnitude: 3.8, depth: 8.3, originTime: '2025-01-14T14:12:05Z', location: '云南大理', latitude: 25.6, longitude: 100.2 },
+    { id: '3', magnitude: 5.1, depth: 25.0, originTime: '2025-01-13T02:45:33Z', location: '台湾花莲', latitude: 24.0, longitude: 121.6 },
   ])
 
   const stations = ref<Station[]>([
@@ -131,9 +131,66 @@ export const useSeismicStore = defineStore('seismic', () => {
     }
   }
 
+  function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const R = 6371
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    return R * c
+  }
+
+  function calculateAzimuth(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const phi1 = lat1 * Math.PI / 180
+    const phi2 = lat2 * Math.PI / 180
+    const dLambda = (lon2 - lon1) * Math.PI / 180
+    const y = Math.sin(dLambda) * Math.cos(phi2)
+    const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLambda)
+    let theta = Math.atan2(y, x)
+    theta = theta * 180 / Math.PI
+    return (theta + 360) % 360
+  }
+
+  function estimateTravelTime(distanceKm: number, depthKm: number, waveType: 'P' | 'S'): number {
+    const vp = 6.0
+    const vs = 3.5
+    const speed = waveType === 'P' ? vp : vs
+    const hypoDist = Math.sqrt(distanceKm * distanceKm + depthKm * depthKm)
+    return hypoDist / speed
+  }
+
+  const selectedStationEvents = computed<(SeismicEvent & StationEventRelation)[]>(() => {
+    if (!selectedStation.value) return []
+    return events.value.map(e => {
+      const dist = haversineDistance(
+        selectedStation.value!.latitude, selectedStation.value!.longitude,
+        e.latitude, e.longitude
+      )
+      const az = calculateAzimuth(
+        selectedStation.value!.latitude, selectedStation.value!.longitude,
+        e.latitude, e.longitude
+      )
+      return {
+        ...e,
+        eventId: e.id,
+        distanceKm: dist,
+        azimuth: az,
+        travelTimeP: estimateTravelTime(dist, e.depth, 'P'),
+        travelTimeS: estimateTravelTime(dist, e.depth, 'S'),
+      }
+    }).sort((a, b) => a.distanceKm - b.distanceKm)
+  })
+
+  const nearestEvent = computed(() => {
+    if (!selectedStationEvents.value.length) return null
+    return selectedStationEvents.value[0]
+  })
+
   return {
     waveform, picks, selectedStation, staWindow, ltaWindow, threshold,
-    isLoading, events, stations,
+    isLoading, events, stations, selectedStationEvents, nearestEvent,
     loadMockData, staLtaPicking, uploadAndAnalyze, generateMockWaveform
   }
 })
